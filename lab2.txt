@@ -1,0 +1,252 @@
+---
+format: markdown
+title: Laboratory 2 - Moldovan Vasilica-Andreea
+       Algorithm for solving systems of congruences
+...
+
+When trying to solve a system of congruences of the given form, the first thing we need to do is to
+check whether the system is a valid one or not. We do this by checking that the number of moduli
+is equal to the number of remainders. 
+
+~~~~~{.python}
+<<Check Number of Parameters>>=
+def check_len(m_list, b_list):
+    return len(m_list) == len(b_list)
+@
+~~~~~
+
+If the system is valid, then we have to find its solution(if it has anuy). The next 
+thing we need to check is represented by the conditions from the Chinese Remainder Theorem. If those
+conditions are verified, we have a general form for the solution of the system. 
+The conditions required by the Chinese Remainder Theorem are: \
+	1. b<sub>i</sub> < m<sub>i</sub>, for every 0 < i <= size, where size = | m | = | b | 
+	
+~~~~~{.python}
+<<Check Validity of Parameters>>=
+def check_params(b_list, m_list):
+    found = False
+    for i in range(len(b_list)):
+        if b_list[i] >= m_list[i]:
+            found = True
+        if found:
+            break
+
+    return not found
+@
+~~~~~
+
+2. (m<sub>i</sub>, m<sub>j</sub>) = 1, where 0 < i <= size, 0 < j <= size and i != j 
+
+~~~~~{.python}
+<<Check Modulo Parameters>>=
+def check_modulo_params(m_list, b_list):
+    found = False
+    no_solution = []
+    for i in range(len(m_list)):
+        for j in range(len(m_list)):
+            if i != j:
+                if gcd_extended(m_list[i], m_list[j])[0] != 1:
+@
+~~~~~
+
+If the conditions are not verified, this means that we cannot use the general form given
+by the Chinese Remainder Theorem to find the solution of the system. But, we can find the solution
+of the system composed by those two equations(the ones corresponding to i and j). Let gcd be the 
+greatest common divisor of m<sub>i</sub> and m<sub>j</sub>. Then, the generalization to
+non-coprime moduli of the Chinese Remainder Theorem says that, if b<sub>i</sub> = b<sub>j</sub> (mod gcd), then
+the system has a unique solution, otherwise it has no solutions. 
+
+~~~~~{.python}
+<<Check Modulo Parameters>>=
+                    found = True
+                    gcd = gcd_extended(m_list[i], m_list[j])
+                    if b_list[i] % gcd[0] != b_list[j] % gcd[0]:
+                        return not found, no_solution
+                    else:
+@
+~~~~~
+
+If the system has a solution, in order to find it we need the lowest common multiple of m<sub>i</sub>
+and m<sub>j</sub>, which is the ratio between their product and their gcd, and we also need
+to write their gcd in the following way: gcd = um<sub>i</sub> + vm<sub>j</sub>. We will obtain those u and v
+from the Euclidean Extended Gcd Algorithm. The solution of the system has the following formula: 
+x = (b<sub>i</sub>vm<sub>j</sub> + b<sub>j</sub>um<sub>i</sub>) / gcd (mod lcm).
+
+*Proof*. \
+	For simplicity, let a = b<sub>i</sub>, b = b<sub>j</sub>, m = m<sub>i</sub> and n = m<sub>j</sub>. \
+	1. Uniqueness \
+	Suppose x and y are two solutions for our system. Then since x and y give the same remainder when divided by m and n, 
+	their difference, x-y is divisible by lcm(m, n), because m and n are not coprime. But since both 
+	x and y are solutions modulo lcm, it means that they are smaller than lcm. So the only option for their difference to be divisible by lcm is to be 0. \
+	Hence, x = y. \
+	2. Existence \
+	x = (avn + bum) / gcd. Knowing that gcd = um + vn, we can replace vn by gcd - um. \
+	Then we obtain, x = [a(gcd - um) + bum] / gcd = [a * gcd + (-a + b)um] / gcd = a + (-a + b)um / gcd. \
+	Now, if we do x modulo m, we obtain that x = a (mod m), because (-a + b)um /gcd = 0 (mod m). \
+	The second congruency can be proved in an analog way.
+
+~~~~~{.python}
+<<Check Modulo Parameters>>=
+                        lcm = m_list[i] * m_list[j] // gcd[0]
+                        x = b_list[i] * gcd[2] * m_list[j] + b_list[j] * gcd[1] * m_list[i]
+                        x = x // gcd[0]
+                        x = x % lcm
+                        no_solution.append(x)
+
+    return not found, no_solution
+@
+~~~~~
+
+However, if the conditions from the Chinese Remainder Theorem are verified, than we can 
+compute the solution of the system. For that we need to compute the product of the moduli, M:
+
+~~~~~{.python}
+<<Get M>>=
+def get_M(m_list):
+    M = 1
+    for n in m_list:
+        M *= n
+    return M
+@
+~~~~~
+
+The formula for the solution, is: \
+$$x = \sum_{n=1}^{r} b_iM_iK_i$$, where $M_i = M / m_i$, $K_i = (N_i)^{-1}\quad mod\quad n_i$. To calculate
+the inverse we have the following function:
+
+~~~~~{.python}
+<<Modular Inverse>>=
+def modular_inverse(a, m):
+    gcd_e = gcd_extended(a, m)
+
+    if gcd_e[0] == 1:
+        return (gcd_e[1] % m + m) % m
+@
+~~~~~
+
+And the function for the extended gcd is:
+
+~~~~~{.python}
+<<Extended Gcd>>=
+def gcd_extended(a, b):
+    if a == 0:
+        return b, 0, 1
+
+    gcd, x1, y1 = gcd_extended(b % a, a)
+    x = y1 - (b // a) * x1
+    y = x1
+
+    return gcd, x, y
+@
+~~~~~
+
+Finally, the function for computing the solution of the system using the Chinese Remainder Theorem, is:
+
+~~~~~{.python}
+<<Chinese Remainder Theorem Solution>>=
+def chinese_remainder_algorithm(m_list, b_list):
+    x = 0
+    M = get_M(m_list)
+    for i in range(len(b_list)):
+        M_i = M // m_list[i]
+        K_i = modular_inverse(M_i, m_list[i])
+        x += (b_list[i] * M_i * K_i)
+
+    return x % M
+@
+~~~~~
+
+In the main function, we check if we can apply the result of the Chinese Remainder Theorem, if not,
+we check then if the system has solution. If the system has solution, we find the solution among the
+solutions of the system composed from two different equations, and we check if that solution verifies the rest 
+of the equations from the systems. 
+
+~~~~~{.python}
+<<Check Solution>>=
+def check_solution(solution, b_list, m_list):
+    for i in range(len(b_list)):
+        if solution % m_list[i] != b_list[i]:
+            return False
+    return True
+@
+~~~~~
+
+~~~~~{.python}
+<<Lowest common multiple>>=
+def get_lowest_common_multiple(m_list):
+    gcd = gcd_extended(m_list[0], m_list[1])
+    lcm = m_list[0] * m_list[1] // gcd[0]
+    for i in range(2, len(m_list)):
+        lcm = lcm * m_list[i] // gcd_extended(lcm, m_list[i])[0]
+
+    return lcm
+@
+~~~~~
+
+~~~~~{.python}
+<<Main>>=
+def main():
+    arr = sys.argv
+    m1 = arr[3].split("[")[1].split("]")
+    m = m1[0].split(",")
+
+    m_list = []
+    for i in range(len(m)):
+        m_list.append(int(m[i]))
+
+    b1 = arr[5].split("[")[1].split("]")
+    b = b1[0].split(",")
+
+    b_list = []
+    for i in range(len(b)):
+        b_list.append(int(b[i]))
+
+    if check_len(m_list, b_list) and check_params(b_list, m_list):
+        modulo_params = check_modulo_params(m_list, b_list)
+        if modulo_params[0]:
+            print([chinese_remainder_algorithm(m_list, b_list)])
+        elif modulo_params[1] == -1:
+            print([])
+        else:
+            solution = modulo_params[1]
+            final_solution = []
+            M = get_M(m_list)
+            lcm = get_lowest_common_multiple(m_list)
+            for sol in solution:
+                if check_solution(sol, b_list, m_list) and sol not in final_solution:
+                    final_solution.append(sol)
+                    sol += lcm
+@
+~~~~~
+
+We also check if the system hasn't any other solutions. If it has, those are obtained by adding the 
+lowest common multiple to the current solution. 
+
+~~~~~{.python}
+<<Main>>=
+                    while sol < M:
+                        final_solution.append(sol)
+                        sol += lcm
+            print(final_solution)
+    else:
+        print("Invalid parameters")
+@
+~~~~~
+
+~~~~~{.python}
+<<*>>=
+<<Extended Gcd>>
+<<Modular Inverse>>
+<<Get M>>
+<<Chinese Remainder Theorem Solution>>
+<<Check Modulo Parameters>>
+<<Check Number of Parameters>>
+<<Check Validity of Parameters>>
+<<Check Solution>>
+<<Lowest common multiple>>
+<<Main>>
+import sys
+main()
+@
+~~~~~
+.

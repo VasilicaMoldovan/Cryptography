@@ -1,0 +1,511 @@
+---
+format: markdown
+title: Laboratory 4 - Moldovan Vasilica-Andreea  
+       ElGamal (basic version)
+...
+
+*How to run the program*
+You can run the program from command line, such as:
+notangle lab4.txt > lab4.py | python lab4.py plaintext
+
+One of the most popular cryptosystems is El Gamal, based on Discrete Logorithm Problem
+and Diffie-Hellman Problem. The first step one needs to do using this cryptosystem is
+key generation. We need to generate the public and the private key.
+
+~~~~~{.python}
+<<Generate Key>>=
+def key_generation():
+    p = generate_prime_number()
+@
+~~~~~
+
+For that, we need to generate first a large random prime p.
+
+~~~~~{.python}
+<<Generate Prime Number>>=
+def generate_prime_number():
+    nr = random.randint(1000, 18000)
+    i = 1
+    k = 5
+    while nr % 2 == 0 or not miller_rabin_test(nr, k):
+        nr = random.randint(1000 + i, 18000)
+        i += 1
+
+    return nr
+@
+~~~~~
+As long as our integer is even or odd but composite, we keep generating large integers.
+For checking if a number is prime, we use the Miller-Rabin primality test.
+
+~~~~~{.python}
+<<Miller-Rabin>>=
+def miller_rabin_test(n, k):
+    composite = False
+    j = 0
+@
+~~~~~
+This primality test can have two results: False, meaning that the given number is
+surely composite, or True, meaning that the given number is probable prime, having a
+probability of error equal to 1 - $\frac{1}{4^k}$. We write n - 1 as $2^s$ * t. In 
+each repetition, we generate a random number between 1 and n, and we compute the folowing
+sequence (modulo n): $a^t$, $a^2t$, $a^(4 * t)$, ..., $a^($2^s$*t)$. To compute this sequence
+we need to define another function, namely:
+
+~~~~~{.python}
+<<Compute modular squaring>>=
+def compute_modular_squaring(a, k, n):
+    sum = decompose_binary(k)
+    rests = []
+
+    stop = sum[-1]
+    aux = a % n
+    for i in range(0, stop + 1):
+        if i in sum:
+            rests.append(aux)
+        aux *= aux
+        aux %= n
+
+    result = 1
+    for i in range(len(rests)):
+        result *= rests[i]
+        result %= n
+
+    return result
+@
+~~~~~
+which computes $a^k$ mod n, using the modular squaring exponentiation method. We already
+presented this function in the previous lab. For this, we also need a function which gives us
+the representation of our number written as a sum of powers of 2.
+
+~~~~~{.python}
+<<Decompose Binary>>=
+def decompose_binary(k):
+    v = []
+    binary = []
+
+    while k > 0:
+        v.append(int(k % 2))
+        k = int(k / 2)
+
+    for i in range(0, len(v)):
+        if v[i] == 1:
+            binary.append(i)
+
+    return binary
+
+@
+~~~~~
+
+If the first element of this sequence is 1, or find another element equal to 1 and its predecessor is -1 (n - 1 in code, 
+because our compute_modular_squaring() method gives positive results), then we can repeat this process.
+Otherwise, we stop and conclude that the number is composite. 
+
+~~~~~{.python}
+<<Miller-Rabin>>=
+    while j < k and not composite:
+        aux = n - 1
+        (s, t) = decompose_n(aux)
+        a = random.randint(1, n)
+        a_seq = []
+        p = 1
+        for i in range(s + 1):
+            a_seq.append(compute_modular_squaring(a, p * t, n))
+            p *= 2
+
+        index = get_first_one(a_seq)
+        if a_seq[0] == 1 or (index > 0 and a_seq[index - 1] == n - 1):
+            composite = False
+        else:
+            composite = True
+        j += 1
+
+    return not composite
+
+@
+~~~~~
+
+Here, we have to define two more auxiliary functions: decompose_n(), which writes n as 
+$2^s * t$, and gives us the s and the t
+ 
+~~~~~{.python}
+<<Decompose N-1>>=
+def decompose_n(n):
+    p = 0
+    while n % 2 == 0:
+        n //= 2
+        p += 1
+    return (p, n)
+@
+~~~~~
+
+and get_first_one() which gives the index of the first apparition
+of an 1 in a given sequence. 
+
+~~~~~{.python}
+<<Get First 1>>=
+def get_first_one(a_seq):
+    for i in range(1, len(a_seq)):
+        if a_seq[i] == 1:
+            return i
+
+    return 0
+@
+~~~~~
+
+The next step is generating a generator g of ($(Z_p)^*$, *) and a random
+number between 1 and p - 1.
+
+~~~~~{.python}
+<<Generate Key>>=
+    g = get_generator(p)
+    a = random.randint(1, p - 2)
+@
+~~~~~
+
+In order to check if g is a generator of our group, we have to compute the 
+sequence, g, g * g, $g^3$, ..., $g^k$ (mod p) until we get an element
+which is already present in our sequence. If the length of the sequence is p - 1, 
+it means we have a generator, otherwise, we keep generating random numbers and
+check if they are a generator of our group, until we find one.
+
+~~~~~{.python}
+<<Get Generator>>=
+def get_generator(p):
+    g = random.randint(2, p)
+
+    while not create_and_check_generator_sequence(g, p):
+        g = random.randint(2, p)
+
+    return g
+@
+~~~~~
+
+~~~~~{.python}
+<<Check Generator>>=
+def create_and_check_generator_sequence(g, p):
+    seq = [g]
+    aux = g
+    stop = False
+
+    while not stop:
+        aux *= g
+        aux = aux % p
+        if aux in seq:
+            stop = True
+        else:
+            seq.append(aux)
+
+    if len(seq) == p - 1:
+        return True
+    return False
+@
+~~~~~
+
+
+Our random integer a is the private key, and the public key is represented by 
+(g, a, $g^a$). For computing the power of g, modulo n, we use the same function compute_modular_sqauring().
+
+~~~~~{.python}
+<<Generate Key>>=
+    k = compute_modular_squaring(g, a, p)
+    return (p, g, k, a)
+@
+~~~~~
+
+After the key generation, we habe to validate the plaintext received as message. 
+We simply check if every character from the plaintext belongs to our alphabet ( the 26 english letters and space).
+
+~~~~~{.python}
+<<Validate Text>>=
+def validate_plaintext_and_ciphertext(plaintext):
+    characters = [' ', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
+                  't', 'u', 'v', 'w', 'x', 'y', 'z']
+    elems = list(plaintext)
+    for e in elems:
+        if e not in characters:
+            return False
+    return True
+@
+~~~~~
+
+If our text is valid, we can proceed with the algorithm. El Gamal encrypts (and decrypts) 
+a number, so we have to represent our message as a number m. For that, we use the 
+following function, in which we represent the given text into an array of numbers,
+each number representing a block of letters of a given size:
+
+~~~~~{.python}
+<<Calculate Numerical Equivalent>>=
+def calculate_numerical_equiv(word, size_of_block = 3):
+    letters = list(word)
+    characters = [' ', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
+                  't', 'u', 'v', 'w', 'x', 'y', 'z']
+
+    dict = {}
+    for i in range(27):
+        dict[characters[i]] = i
+
+    j = 0
+    no_equiv = []
+    while j < len(letters):
+        i = j
+        aux = 0
+        while i < len(letters) and i < j + size_of_block:
+            i += 1
+        i -= j
+        for a in range(0, i):
+            aux += pow(27, size_of_block - a - 1) * dict[letters[j + a]]
+
+        j += i
+        no_equiv.append(aux)
+
+    return no_equiv 
+@
+~~~~~
+
+Now, we can define our encryption function. This takes as arguments the public 
+key, namely (p, g, $g^a$ which we denoted here as k) and the message, and returns
+a tuple which will be used in the decryption function:
+
+~~~~~{.python}
+<<Encrypt>>=
+def encryption(p, g, k, m):
+    k1 = random.randint(1, p - 2)
+    alpha = compute_modular_squaring(g, k1, p)
+    aux = compute_modular_squaring(k, k1, p)
+    beta = (m * aux) % p
+
+    return (alpha, beta)
+@
+~~~~~
+
+The decryption function takes as arguments the tuple obtained in the encryption
+part, the private key,a, and the prime number p. 
+
+~~~~~{.python}
+<<Decrypt>>=
+def decryption(alpha, beta, a, p):
+    aux = compute_modular_squaring(alpha, p - 1 - a, p)
+    message = (beta * aux) % p
+    return message
+@
+~~~~~
+
+But this two functions work only with numbers, and our cryptosystem should work
+with plaintext and ciphertext. This means that we need two functions: one for 
+converting a string into a number, and one for converting a number into a string.
+The first one is already defined (calculate_numerical_equiv), and the second one
+is:
+
+~~~~~{.python}
+<<Get Equivalent String>>=
+def get_equiv_letters(m, size_of_block = 3):
+    characters = [' ', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
+                  't', 'u', 'v', 'w', 'x', 'y', 'z']
+
+    l_dict = {}
+    for i in range(0, 27):
+        l_dict[characters[i]] = i
+
+    letters = ""
+    size_of_block -= 1
+    while m > 0 or size_of_block >= 0:
+        aux = m // pow(27, size_of_block)
+        letters += characters[aux]
+        m = m % pow(27, size_of_block)
+        size_of_block -= 1
+
+    return letters
+@
+~~~~~
+
+Both those function are based on the same principle: We divide our plaintext in
+chunks of length k, and our ciphertext in chunks of length l. The only condition
+here is that $27^k$ < p < $27^l$, because our alphabet has 27 elements, and we need
+a correct mapping. For simplicity, we chose in the beginning k = 2 and l = 3, and
+we made sure that when we generated p, this was in the required interval. Now, we 
+can finally write the ElGamal algorithm:
+
+~~~~~{.python}
+<<El Gamal>>=
+def ElGamal(message):
+@
+~~~~~
+The first thing we do is generating the keys:
+
+~~~~~{.python}
+<<El Gamal>>=
+    (p, g, k, a) = key_generation()
+    k_size = 2
+    l_size = 3
+    if not validate_plaintext_and_ciphertext(message):
+        print("Invalid plaintext")
+    else:
+        print("Plain text:", message)
+@
+~~~~~
+If the plaintext is a valid one, we calculate its numerical equivalent and 
+begin the encryption. 
+
+~~~~~{.python}
+<<El Gamal>>=
+        nr = calculate_numerical_equiv(message, k_size)
+        cipher_array = []
+        cipher = ""
+        for i in nr:
+            (alpha, beta) = encryption(p, g, k, i)
+@
+~~~~~
+The result of each encryption operation is a tuple consisting of two numbers, 
+but in order to construct the ciphertext we need to convert those numbers into
+strings:
+
+~~~~~{.python}
+<<El Gamal>>=
+            al = get_equiv_letters(alpha, l_size)
+            b = get_equiv_letters(beta, l_size)
+            cipher_array.append(alpha)
+            cipher_array.append(beta)
+            cipher += al
+            cipher += b
+
+@
+~~~~~
+After the encryption is done, we check if the generated ciphertext is valid, and
+if this is the case, we proceed with decryption:
+
+~~~~~{.python}
+<<El Gamal>>=
+        if validate_plaintext_and_ciphertext(cipher):
+            print("Cipher text: ", cipher)
+@
+~~~~~
+Again, we have to convert the ciphertext into a vector of numbers. Considering 
+the way we constructed the ciphertext, we have to work every time with two positions
+from this array, because we need both $\alpha$ and $\beta$ for decrypting a message:
+
+~~~~~{.python}
+<<El Gamal>>=
+            nr1 = calculate_numerical_equiv(cipher, l_size)
+            i = 0
+            final_text = ""
+            while i < len(nr1) - 1:
+                m = decryption(nr1[i], nr1[i + 1], a, p)
+@
+~~~~~
+After the decryption, we can reconstruct the message:
+
+~~~~~{.python}
+<<El Gamal>>=
+                final_text += get_equiv_letters(m, k_size)
+                i += 2
+
+            print("Final text: ", final_text)
+            return final_text
+@
+~~~~~
+
+The test functions for are :
+1. The conversion string - numbers and number - string:
+
+~~~~~{.python}
+<<Test Conversion>>=
+def test_transf():
+    words = ["here is an", "array", "of words", "welcome", "to", " cryptography"]
+    for i in range (len(words)):
+        m = calculate_numerical_equiv(words[i], 2)
+        w = ""
+        for n in m:
+            a = get_equiv_letters(n, 2)
+            w += a
+        if w[-1] == ' ':
+            w = w[:-1]
+        assert w == words[i]
+@
+~~~~~
+
+2. Encrypting - Decrypting numbers:
+
+~~~~~{.python}
+<<Test Numbers>>=
+def test_nr():
+    (p, g, k, a) = key_generation()
+    for i in range(10000, 50000):
+        i = i % p
+        (alpha, beta) = encryption(p, g, k, i)
+        m = decryption(alpha, beta, a, p)
+        assert m == i
+@
+~~~~~
+
+3. And for ElGamal algorithm:
+
+~~~~~{.python}
+<<Test ElGamal>>=
+def test_ElGamal():
+    words = ["here is an","array","of words","cryptography","el","gamal"," cryptosystem","miller rabin","primality test", "end of the semester"]
+
+    for i in range(0, len(words)):
+        words[i] = words[i].lower()
+        w = ElGamal(words[i])
+        if w[-1] == ' ':
+            w = w[:-1]
+        assert words[i] == w
+@
+~~~~~
+
+The main function is:
+
+~~~~~{.python}
+<<Main>>=
+def main():
+    test_transf()
+    test_nr()
+    test_ElGamal()
+    arr = sys.argv
+    if len(arr) > 1:
+        i = 1
+        while i < len(arr):
+            w = arr[i].lower()
+            ElGamal(w)
+            i += 1
+@
+~~~~~
+
+The ElGamal algorithm is correct. 
+*Proof*
+We have $\alpha$^(-a) * $\beta$ = $g ^(-ak)$ * m * $(g^a)^k$ = m.
+
+~~~~~{.python}
+<<*>>=
+<<Generate Key>>
+<<Generate Prime Number>>
+<<Miller-Rabin>>
+<<Compute modular squaring>>
+<<Decompose Binary>>
+<<Decompose N-1>>
+<<Get First 1>>
+<<Get Generator>>
+<<Check Generator>>
+<<Validate Text>>
+<<Calculate Numerical Equivalent>>
+<<Encrypt>>
+<<Decrypt>>
+<<Get Equivalent String>>
+<<El Gamal>>
+<<Test Conversion>>
+<<Test Numbers>>
+<<Test ElGamal>>
+<<Main>>
+
+import sys
+import random
+main()
+@
+~~~~~
+.
+
+
+
+
+
+

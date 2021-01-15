@@ -1,0 +1,277 @@
+---
+format: markdown
+title: Laboratory 3 - Moldovan Vasilica-Andreea
+       Pollard p - 1 Algorithm 
+...
+
+
+*How to run the program*
+You can run the program from command line, such as:
+notangle lab3.txt > lab3.py | python lab3.py n B
+
+To find a non-trivial divisor of a composite number, one can use pollard p-1 algorithm.
+This algorithm is used to find any prime factor p of an odd composite number n for which p-1 has only small prime
+divisors. An observation on which this algorithm is based is that, we are able to find a multiple k of p-1 without
+knowing p - 1, but as a product of powers of small primes. This algorithm is also based on Fermat's Little Theorem, which says that a^p = a (mod p), when p
+is prime, for every a from Z. Then, a^k = 1 (mod p), for every a from Z with p not divide a. Then, p | a^k  - 1. If
+n not divide a^k -1, then d = (a^k - 1, n) is a non-trivial divisor of n. (*)
+In our implementation, k is chosen as lcm(1, 2, ..., B). This means that if the primes dividing p-1 are smaller than B, 
+then k is a multiple of p-1.
+There are some auxiliary functions we need for Pollard p-1 algorithm. The first one would be the function which computes
+the lcm of a list, because we need that to compute our parameter k. 
+
+~~~~~{.python}
+<<Compute List Lcm>>=
+def compute_list_lcm(a_list):
+@
+~~~~~
+The function is pretty simple, if the list has only one element then that element is the lcm
+
+~~~~~{.python}
+<<Compute List Lcm>>=
+    if len(a_list) == 1:
+        return a_list[0]
+    elif len(a_list) == 0:
+        return -1
+    else:
+@
+~~~~~
+otherwise we compute the lcm of the current lcm(which initially is the lcm of the first two elements) and the 
+next element, until we reach the end of the list.
+
+~~~~~{.python}
+<<Compute List Lcm>>=
+        lcm = compute_lcm(a_list[0], a_list[1])
+        for i in range(2, len(a_list)):
+            lcm = compute_lcm(lcm, a_list[i])
+        return lcm
+@
+~~~~~
+For that, we also need a function which computes the lcm of only two given numbers
+
+~~~~~{.python}
+<<Compute Lcm>>=
+def compute_lcm(a, b):
+    g = euclid_gcd(a, b)
+    return a * b // g
+@
+~~~~~
+This is based on the fact that the lcm of two numbers is the product of the numbers divided by their gcd.
+For computing the gcd, we used the classical euclidean algorithm.
+
+~~~~~{.python}
+<<Euclid Gcd>>=
+def euclid_gcd(a, b):
+    if a == 0:
+        return b
+    return euclid_gcd(b % a, a)
+@
+~~~~~
+
+In Pollard p-1 algorithm, we will need to compute a^k mod n, and for that, we will use modular squaring exponentiation.
+
+~~~~~{.python}
+<<Modular Squaring>>=
+def compute_modular_squaring(a, k, n):
+    sum = decompose_binary(k)
+@
+~~~~~
+
+For this, we need to decompose the exponent into a sum of powers of 2.
+
+~~~~~{.python}
+<<Decompose Binary>>=
+def decompose_binary(k):
+    v = []
+    binary = []
+
+    while k > 0:
+        v.append(int(k % 2))
+        k = int(k / 2)
+
+    for i in range(0, len(v)):
+        if v[i] == 1:
+            binary.append(i)
+
+    return binary
+@
+~~~~~
+
+~~~~~{.python}
+<<Modular Squaring>>=
+    rests = []
+
+    stop = sum[-1]
+    aux = a % n
+    for i in range(0, stop + 1):
+        if i in sum:
+            rests.append(aux)
+        aux *= aux
+        aux %= n
+
+    result = 1
+    for i in range(len(rests)):
+        result *= rests[i]
+        result %= n
+
+    return result
+@
+~~~~~
+
+After having all these auxiliary functions, we can write the Pollard p-1 algorithm for finding a non-trivial divisor
+of a composite number. Our implementation can take at most 3 parameters: n - the composite number for
+which we look for a non-trivial divisor, B - the bound, which can be implicit, and the base a, which can also be implicit.
+Normally, a is chosen randomnly such that 1 < a < n - 1, but because Pollard p-1 algorithm does not work for any base,
+when testing we might need to change the base, and this is the reason for which we added the posibility to have a as a function parameter.
+If a is 0, meaning that no value is given for a, we choose it randomnly in the interval (1, n-1). 
+When running the program from terminal, we might choose not to give a bound B, case in which B has a default value, 13.
+
+~~~~~{.python}
+<<Pollard p-1>>=
+def pollard_p_1_algorithm(n, B=13, a=0):
+@
+~~~~~
+The first thing we do, is to construct the list [1, 2, .., B] and to compute the lcm of its elements.
+
+~~~~~{.python}
+<<Pollard p-1>>=
+    k_list = []
+    for i in range(1, B + 1):
+        k_list.append(i)
+    k = compute_list_lcm(k_list)
+@
+~~~~~
+Then, depending on if we provided a value for a or not, we generate a (if no value was given for a), and then we
+compute the remainder modulo n of a^k, using modular squaring exponentiation method.
+
+~~~~~{.python}
+<<Pollard p-1>>=
+    if a == 0:
+        a = random.randint(2, n - 2)
+    a = compute_modular_squaring(a, k, n)
+@
+~~~~~
+Then, we compute the gcd of a - 1 and n, which will be a non-trivial factor of the composite number n.
+We compute the gcd of a - 1 and n, and not a  and n, because we rely on the idea presented in the first paragraph, namely here *.
+
+~~~~~{.python}
+<<Pollard p-1>>=    
+    d = euclid_gcd(a - 1, n)
+    return d
+@
+~~~~~
+
+When it comes to testing our program, we took a list containg only prime numbers, and we checked for all those numbers if the result of the Pollard p-1 algorithm applied on their squares is themselves.
+ 
+~~~~~{.python}
+<<Test Pollard p-1>>=
+primes = [41, 47, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 131, 137, 139, 149, 151, 157, 163,
+              167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251,
+              257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347, 349, 353, 359, 367, 373, 379,
+              383, 389, 397, 401, 409]
+cnt = 0
+for prime in primes:
+	n = prime * prime
+        p = pollard_p_1_algorithm(n)
+        if p == n or p == 1:
+@
+~~~~~
+If the result of Pollard p-1 algorithm is 1 or the number for which it was applied, it is not concludent, because those are trivial divisors, and we look for a non-trivial divisor.
+We have to try again, but this time with a different base, but this new base still needs to be in the (1, n-1) interval.
+
+~~~~~{.python}
+<<Test Pollard p-1>>=
+            ma = 300
+            i = 0
+            B = 13
+            while i < ma:
+                a = random.randint(2, n - 2 - i) + i
+                if pollard_p_1_algorithm(n, B, a) == prime:
+                    print("A non-trivial divisor of ", n, " is ", prime)
+                    cnt += 1
+                    break
+                i += 1
+@
+~~~~~
+If the algorithm still doesn't give the wanted result, it means that we should also try chainging the bound B. 
+We checked first with changing the base a, because from the tests we've made, the algorithm gave a good result a little faster for changing the base, than for changing the bound.
+
+~~~~~{.python}
+<<Test Pollard p-1>>=
+            if i == ma:
+                i = 0
+                while i < ma:
+                    B += 1
+                    a = random.randint(2, n - 2)
+                    if pollard_p_1_algorithm(n, B, a) == prime:
+                        print("A non-trivial divisor of ", n, " is ", prime)
+                        cnt += 1
+                        break
+                    i += 1
+@
+~~~~~
+For every number for which the result was the expected one, we increment a count variable.
+
+~~~~~{.python}
+<<Test Pollard p-1>>=
+        elif p == prime:
+            print("A non-trivial divisor of ", n, " is ", prime)
+            cnt += 1
+@
+~~~~~
+
+Then, in the end, we check if our count variable is equal to the size of the primes list, meaning that fo every number, the result of the Pollard p-1 algorithm was the expected one.
+
+~~~~~{.python}
+<<Test Pollard p-1>>=
+assert len(primes) == cnt
+ 
+@
+~~~~~
+
+In the main function, we only need read the command line arguments (which can be one : only the number n for which we find a non-trivial divisor, or two : the number n, and the bound B).
+
+~~~~~{.python}
+<<Main>>=
+def main():
+    arr = sys.argv
+    n = int(arr[1])
+    if len(arr) > 2:
+        B = int(arr[2])
+        p = pollard_p_1_algorithm(n, B)
+    else:
+        p = pollard_p_1_algorithm(n)
+
+    if p == 1 or p == n:
+        print("Failure")
+    else:
+        print("A non-trivial divisor of " + str(n) + " is " + str(p))
+@
+~~~~~
+
+~~~~~{.python}
+<<*>>=
+import random
+<<Euclid Gcd>>
+<<Compute Lcm>>
+<<Compute List Lcm>>
+<<Decompose Binary>>
+<<Modular Squaring>>
+<<Pollard p-1>>
+<<Main>>
+<<Test Pollard p-1>>
+import sys
+main()
+@
+~~~~~
+.
+
+
+
+
+
+
+
+
+
+
